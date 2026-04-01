@@ -17,8 +17,16 @@ def extract(engine):
     Returns:
         dict: {"customers": df, "products": df, "orders": df, "order_items": df}
     """
-    # TODO: Implement extraction
-    pass
+    
+
+    print ("stage 1: extract Data")
+    tables = ["customers", "products", "orders", "order_items"] 
+    data_dict = {}
+    for table in tables:
+        query = f"SELECT * FROM {table}"
+        data_dict[table] = pd.read_sql(query, engine) 
+        print(f"Extracted {len(data_dict[table])} rows from {table} table.")   
+    return data_dict      
 
 
 def transform(data_dict):
@@ -40,8 +48,44 @@ def transform(data_dict):
             customer_id, customer_name, city, total_orders,
             total_revenue, avg_order_value, top_category
     """
-    # TODO: Implement transformation
-    pass
+    print("\n--- Stage 2: Transforming Data ---")
+    
+    
+    customers = data_dict['customers']
+    products = data_dict['products']
+    orders = data_dict['orders']
+    items = data_dict['order_items']
+
+    merged_df = items.merge(products, on='product_id')
+    merged_df = merged_df.merge(orders, on='order_id')
+    merged_df = merged_df.merge(customers, on='customer_id')
+
+
+
+    merged_df['line_total'] = merged_df['quantity'] * merged_df['unit_price']
+
+   
+
+    merged_df = merged_df[merged_df['status'] != 'cancelled']
+    merged_df = merged_df[merged_df['quantity'] <= 100]
+
+
+    customer_summary = merged_df.groupby(['customer_id', 'customer_name']).agg(total_orders=('order_id', 'nunique'),total_revenue=('line_total', 'sum')).reset_index()
+
+    customer_summary['avg_order_value'] = customer_summary['total_revenue'] / customer_summary['total_orders']
+
+    
+    cat_rev = merged_df.groupby(['customer_id', 'category'])['line_total'].sum().reset_index()
+    top_cats = cat_rev.sort_values('line_total', ascending=False).drop_duplicates('customer_id')
+    
+    
+    customer_summary = customer_summary.merge(top_cats[['customer_id', 'category']], on='customer_id')
+    customer_summary = customer_summary.rename(columns={'category': 'top_category'})
+
+    print(f"Done! Created summary for {len(customer_summary)} customers.")
+    return customer_summary
+
+
 
 
 def validate(df):
@@ -62,8 +106,28 @@ def validate(df):
     Raises:
         ValueError: if any critical check fails
     """
-    # TODO: Implement validation
-    pass
+    
+    print("\n--- Stage 3: Validating Data ---")
+    
+    results = {}
+
+    results['no_nulls'] = df['customer_id'].notnull().all() and df['customer_name'].notnull().all()
+    
+    results['revenue_positive'] = (df['total_revenue'] > 0).all()
+    
+    results['no_duplicates'] = not df['customer_id'].duplicated().any()
+    
+    results['orders_positive'] = (df['total_orders'] > 0).all()
+
+    for check, status in results.items():
+        state = "PASS" if status else "FAIL"
+        print(f"Check [{check}]: {state}")
+
+    if not all(results.values()):
+        raise ValueError("Data Validation Failed! Critical errors found in the report.")
+
+    print("All validation checks passed successfully.")
+    return results
 
 
 def load(df, engine, csv_path):
@@ -74,20 +138,41 @@ def load(df, engine, csv_path):
         engine: SQLAlchemy engine
         csv_path: path for CSV output
     """
-    # TODO: Implement loading
-    pass
+    print("\n--- Stage 4: Loading Data ---")
 
+    df.to_sql('customer_analytics', engine, if_exists='replace', index=False)
+    print("Successfully loaded data into 'customer_analytics' table.")
+
+    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+    
+    df.to_csv(csv_path, index=False)
+    print(f"Successfully saved data to: {csv_path}")
+
+    print(f"Total rows loaded: {len(df)}")
+    
+    print("\n>>> ETL Pipeline Completed Successfully! <<<")
+   
 
 def main():
     """Orchestrate the ETL pipeline: extract -> transform -> validate -> load."""
-    # TODO: Implement main orchestration
-    # 1. Create engine from DATABASE_URL env var (or default)
-    # 2. Extract
-    # 3. Transform
-    # 4. Validate
-    # 5. Load to customer_summary table and output/customer_analytics.csv
-    pass
+
+
+    DB_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/amman_market"
+    engine = create_engine(DB_URL)
+
+    print("Starting ETL Pipeline...")
+
+    
+    raw_data = extract(engine)
+    
+    transformed_data = transform(raw_data)
+    validate(transformed_data)
+    load(transformed_data, engine, "output/customer_analytics.csv")
+    
+
 
 
 if __name__ == "__main__":
+   
+    
     main()

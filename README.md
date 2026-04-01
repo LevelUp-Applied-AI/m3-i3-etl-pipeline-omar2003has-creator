@@ -3,7 +3,19 @@
 
 ## Overview
 
-<!-- What does this pipeline do? -->
+<!-- What does this pipeline do? --
+This pipeline is a data tool for Amman Digital Market. It takes raw sales data from a database and turns it into a clean summary report.
+
+It performs 4 main steps:
+
+1. Extracts: It connects to PostgreSQL and pulls tables for Customers, Products, and Orders.
+
+2. Cleans: It removes "bad" data, like canceled orders or orders with quantities over 100.
+
+3. Calculates: It joins the tables to find out how much each customer spent and their preferred category.
+
+4. Saves: It creates a final file called customer_analytics.csv to show the results
+>
 
 ## Setup
 
@@ -30,11 +42,30 @@ python etl_pipeline.py
 
 ## Output
 
-<!-- What does customer_analytics.csv contain? -->
+<!-- What does customer_analytics.csv contain?
+
+Customer ID & Name: Who is the buyer?
+
+Total Orders: How many successful orders did they make?
+
+Total Revenue: Total money spent by this customer.
+
+Top Category: Which product category they bought the most.
+ -->
 
 ## Quality Checks
 
-<!-- What validations are performed and why? -->
+<!-- What validations are performed and why? 
+
+We perform these checks to make sure the data is 100% correct:
+
+Filter Cancelled: We remove cancelled orders so they don't count as sales.
+
+Filter Quantities: We remove any order with more than 100 items to avoid "Data Entry" mistakes.
+
+Check Nulls: The code stops and shows an error if a Customer ID is missing.
+
+Positive Totals: We make sure all prices and revenues are more than zero.-->
 
 ---
 
